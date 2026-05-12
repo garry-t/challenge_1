@@ -151,7 +151,7 @@ I keep this setup Kubernetes-generic where possible. I use **Terraform** as my m
 - `**kubectl` and GitHub (optional):** I integrate the API server with **OIDC** using **GitHub** as the identity provider and map **GitHub teams** to Kubernetes **RBAC** (`ClusterRoleBinding` / `RoleBinding`) so access matches org structure (e.g. SRE full prod, developers read-only or namespace-scoped).
 
 **Architecture diagram:** This diagram shows only the production cluster environment. To avoid overloading it, I include only key components and their interactions.
-It includes GitHub, Argo CD, Argo Workflows, Dex, shared nodes, the monitoring stack, Traefik ingress, and an example of three dedicated customer nodes across data centers (DCs) with a single-writer, single-replica StatefulSet and replicated attached volumes. Longhorn internal components are intentionally omitted.
+It includes **GitHub**, **Argo CD**, **Argo Workflows**, **Dex**, **Shared nodes**, **Monitoring stack**, **Traefik** **Vault**, and an example of three dedicated customer nodes across data centers (DCs) with a single-writer, single-replica StatefulSet and replicated attached volumes. **Longhorn** internal components are intentionally omitted.
 
 ![Kubernetes architecture diagram](kubernetes.drawio.png)
 
