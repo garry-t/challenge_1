@@ -61,7 +61,7 @@ Move **live production** workloads onto the proposed Kubernetes stack (Longhorn-
 3. **Initial bulk copy (low or no production impact)**
   From production servers: take a **consistent** export—e.g. application **graceful stop**, I use **Restic as a one-way bootstrap mechanism** to capture source data and restore it into a **new Longhorn PVC** for the Kubernetes app (see [restic_backup](example/restic_backup_job.yml) and [restic_restore](example/restic_restore_job.yml)). **Do not** mount the same dataset to two live writers.
 4. **Snapshot transfer window (planned downtime)**
-  I do not run a final sync. Instead, I stop the legacy app, take a consistent snapshot, copy that snapshot to object storage, and restore it to the Kubernetes target volume. This avoids dual-write complexity and avoids delta-export logic that may be hard or impossible for some LevelDB workloads.
+  I stop the legacy app, take a consistent snapshot, copy that snapshot to object storage, and restore it to the Kubernetes target volume. This avoids dual-write complexity and avoids delta-export logic that may be hard or impossible for some LevelDB workloads.
 5. **Cutover (one-way)**
   - Stop the legacy app and ensure no writers remain on the old LevelDB before snapshot/restore.  
   - Point **DNS / LB / ingress** to the Kubernetes **Service** for the StatefulSet — from this point the **authoritative** writer is on the cluster.  
