@@ -1,5 +1,7 @@
 # Cluster architecture POC
 
+> Start here: see [READ_IT_FIRST.md](READ_IT_FIRST.md) for assumptions and scope before reading this architecture.
+
 ## Table of Contents
 
 - [Architecture summary](#architecture-summary)
