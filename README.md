@@ -1,4 +1,4 @@
-# challenge_1
+# Cluster architecture POC
 
 ## Table of Contents
 
