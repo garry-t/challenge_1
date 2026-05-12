@@ -1,0 +1,56 @@
+# Longhorn StorageClass: default 3 replicas (see README — tune per tier via separate SCs, e.g. "2" for cost-sensitive / non-prod).
+# Align with your Longhorn install: provisioner must be driver.longhorn.io; parameters vary slightly by Longhorn version (check upstream docs).
+# Optional: duplicate this manifest with a different metadata.name per customer/tier and adjust numberOfReplicas / dataLocality / nodeSelector as needed.
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: longhorn
+provisioner: driver.longhorn.io
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+parameters:
+  numberOfReplicas: "3"
+  staleReplicaTimeout: "30"
+  fsType: ext4
+  # dataLocality: "best-effort"   # uncomment if you want volumes to prefer the same node as the workload (evaluate vs cross-node HA)
+
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: longhorn-snapclass
+driver: driver.longhorn.io
+deletionPolicy: Delete
+
+---
+
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: leveldb-snap-001
+  namespace: app
+spec:
+  volumeSnapshotClassName: longhorn-snapclass
+  source:
+    persistentVolumeClaimName: leveldb-pvc
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: leveldb-pvc-restored
+  namespace: app
+spec:
+  storageClassName: longhorn
+  dataSource:
+    name: leveldb-snap-001
+    kind: VolumeSnapshot
+    apiGroup: snapshot.storage.k8s.io
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Ti

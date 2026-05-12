@@ -1,0 +1,7 @@
+# Context is ./ci-cd — patterns are relative to this directory.
+*.yml
+*.md
+.env
+.env.*
+**/*secret*
+**/*.pem

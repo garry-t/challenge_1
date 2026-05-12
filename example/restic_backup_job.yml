@@ -1,0 +1,101 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: leveldb-restic-lvm-backup
+  namespace: app
+spec:
+  schedule: "0 1,5 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          nodeSelector:
+            customer: "CUSTOMER1" # VM name where we should run backup job
+          restartPolicy: OnFailure # Optionaly we can use OnFailure or Never
+          hostPID: true
+          containers:
+            - name: backup
+              image: alpine:3.20
+              securityContext:
+                privileged: true
+              resources:
+                requests:
+                  cpu: "500m"
+                  memory: "1Gi"
+                limits:
+                  cpu: "2"
+                  memory: "4Gi"
+              env:
+                - name: VG_NAME
+                  value: "vg_data"
+                - name: LV_NAME
+                  value: "lv_leveldb"
+                - name: SNAP_NAME
+                  value: "snap_leveldb"
+                - name: SNAP_SIZE
+                  value: "200G"   # size for COW changes during backup window
+                - name: RESTIC_REPOSITORY
+                  value: "s3:https://s3.example.com/leveldb-backups"
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic-secret
+                      key: access_key
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic-secret
+                      key: secret_key
+                - name: RESTIC_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: restic-secret
+                      key: password
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  set -euo pipefail
+
+                  apk add --no-cache lvm2 util-linux e2fsprogs xfsprogs restic
+
+                  # 1) create LVM snapshot
+                  lvcreate -L "${SNAP_SIZE}" -s -n "${SNAP_NAME}" "/dev/${VG_NAME}/${LV_NAME}"
+
+                  mkdir -p /mnt/snap
+
+                  # 2) mount snapshot readonly (ext4 example; for XFS use -t xfs)
+                  mount -o ro "/dev/${VG_NAME}/${SNAP_NAME}" /mnt/snap
+
+                  # 3) restic backup from snapshot
+                  restic snapshots >/dev/null 2>&1 || restic init
+                  ionice -c2 -n7 nice -n 19 \
+                    restic backup /mnt/snap \
+                      --tag leveldb \
+                      --one-file-system \
+                      --limit-upload 131072
+
+                  ionice -c2 -n7 nice -n 19 \
+                    restic forget --keep-daily 7 --keep-weekly 4 --prune
+
+                  # 4) cleanup
+                  umount /mnt/snap
+                  lvremove -f "/dev/${VG_NAME}/${SNAP_NAME}"
+              volumeMounts:
+                - name: host-dev
+                  mountPath: /dev
+                - name: host-run-lvm
+                  mountPath: /run/lvm
+                - name: host-var-lock-lvm
+                  mountPath: /var/lock/lvm
+          volumes:
+            - name: host-dev
+              hostPath:
+                path: /dev
+            - name: host-run-lvm
+              hostPath:
+                path: /run/lvm
+            - name: host-var-lock-lvm
+              hostPath:
+                path: /var/lock/lvm

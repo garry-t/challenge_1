@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: leveldb-restic-restore
+  namespace: app
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+            customer: "CUSTOMER1" # VM name where we should run restore job
+      containers:
+        - name: restore
+          image: restic/restic:0.16.4
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
+          env:
+            - name: RESTIC_REPOSITORY
+              value: s3:https://s3.example.com/leveldb-backups
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: restic-secret
+                  key: access_key
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: restic-secret
+                  key: secret_key
+            - name: RESTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: restic-secret
+                  key: password
+            - name: RESTIC_SNAPSHOT
+              value: "latest" # or explicit snapshot ID
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -euo pipefail
+
+              # Safety: target PVC must be empty/new
+              if [ -n "$(ls -A /restore 2>/dev/null || true)" ]; then
+                echo "Target /restore is not empty. Abort restore."
+                exit 1
+              fi
+
+              # Optional: verify repo availability before restore
+              restic snapshots
+
+              # Restore data
+              ionice -c2 -n7 nice -n 19 \
+                restic restore "${RESTIC_SNAPSHOT}" --target /restore
+
+              # Optional validation marker
+              test -d /restore/data || true
+              echo "Restore completed."
+          volumeMounts:
+            - name: restore-target
+              mountPath: /restore
+      volumes:
+        - name: restore-target
+          persistentVolumeClaim:
+            claimName: leveldb-restore-pvc
